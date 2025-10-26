@@ -108,7 +108,7 @@ jobs:
           flatpak build-export repo build-dir
           flatpak build-bundle repo thenews.flatpak com.weenie.thenews
 
-            - name: Build AppImage
+      - name: Build AppImage
         run: |
           APPDIR=AppDir
           mkdir -p $APPDIR/usr/bin
@@ -153,7 +153,7 @@ jobs:
           # Verify Qt plugins were bundled
           echo "Checking bundled Qt plugins:"
           find $APPDIR -name "*.so" | grep -i platform || echo "WARNING: No platform plugins found!"
-          
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
