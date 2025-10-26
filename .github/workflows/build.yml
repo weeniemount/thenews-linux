@@ -9,7 +9,7 @@ on:
 jobs:
   build:
     name: Build and Package
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     container:
       image: fedora:42
       options: --privileged
