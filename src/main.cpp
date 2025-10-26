@@ -1,6 +1,7 @@
 #include <glib.h>
 #include <libnotify/notify.h>
 #include <iostream>
+#include <cstring>
 
 #include <QApplication>
 #include <QWidget>
@@ -21,6 +22,7 @@
 #include <QTimer>
 #include <QSlider>
 #include <QHBoxLayout>
+#include <QCoreApplication>
 
 class SkewedButton : public QPushButton {
 public:
@@ -162,6 +164,8 @@ void createHDesktopFile() {
     QString desktopFilePath = applicationsPath + "/h.desktop";
     QFile desktopFile(desktopFilePath);
     
+    QString executablePath = QCoreApplication::applicationFilePath();
+    
     if (desktopFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
         QTextStream out(&desktopFile);
         out << "[Desktop Entry]\n";
@@ -169,7 +173,7 @@ void createHDesktopFile() {
         out << "Name=h\n";
         out << "Comment=h\n";
         out << "Icon=" << iconPath << "\n";
-        out << "Exec=/bin/true\n";
+        out << "Exec=" << executablePath << " --h\n";
         out << "Terminal=false\n";
         out << "Categories=Utility;\n";
         
@@ -477,9 +481,42 @@ void sendNotification(const std::string &notificationType) {
             std::cerr << "error notifying the notification smh: " << error->message << "\n";
             g_error_free(error);
         }
-    }cd
+    }
 
     g_object_unref(G_OBJECT(n));
+}
+
+void printHelp() {
+    std::cout << "the news cli!\n\n";
+    std::cout << "usage: thenews [OPTION]\n\n";
+    std::cout << "options:\n";
+    std::cout << "  --help                show this help message\n";
+    std::cout << "  --h                   show the h\n";
+    std::cout << "  --someoneDied         someone died notification\n";
+    std::cout << "  --donate              donation request\n";
+    std::cout << "  --serversDying        servers dying notification\n";
+    std::cout << "  --deleteSystem32      system32 deletion warning\n";
+    std::cout << "  --incomingCall        John Phone incoming call\n";
+    std::cout << "  --earthOnFire         earth on fire weather forecast\n";
+    std::cout << "  --friendRequest       John Phone friend request\n";
+    std::cout << "  --websiteRedesign     website redesign announcement\n";
+    std::cout << "  --roadblocks          roadblocks viral video\n";
+    std::cout << "  --linkerTragedy       linker gambling tragedy\n";
+    std::cout << "  --mazeGambled         maze gambling story\n";
+    std::cout << "  --femboyLabs          femboyLabs rebrand\n";
+    std::cout << "  --bussinIndustries    Bussin Industries cryptic note\n";
+    std::cout << "  --hTile               put the h in your start menu\n";
+    std::cout << "  --baseballEmoji       baseball emoji on Discord\n";
+    std::cout << "  --jonathanPork        john Pork incoming call\n";
+    std::cout << "  --linkerAgain         linker text message\n";
+    std::cout << "  --hGif                h gif notification\n";
+    std::cout << "  --findMeOnline        find me online\n";
+    std::cout << "  --googServices        Google Play Services request\n";
+    std::cout << "  --flash               Flash Player required\n";
+    std::cout << "  --mcafee              McAfee subscription expired\n";
+    std::cout << "  --noskid              NoSkid certificate required\n";
+    std::cout << "\n";
+    std::cout << "if no option is provided, the news ui will launch\n";
 }
 
 auto addConsistentStyle = [](QPushButton *btn) {
@@ -513,6 +550,98 @@ auto addConsistentStyle = [](QPushButton *btn) {
 
 
 int main(int argc, char *argv[]) {
+    // Check for CLI arguments
+    bool cliMode = false;
+    std::string notification = "";
+    
+    for (int i = 1; i < argc; i++) {
+        std::string arg = argv[i];
+        if (arg == "--help") {
+            printHelp();
+            return 0;
+        } else if (arg == "--h") {
+            cliMode = true;
+            notification = "hGif";
+        } else if (arg == "--someoneDied") {
+            cliMode = true;
+            notification = "someoneDied";
+        } else if (arg == "--donate") {
+            cliMode = true;
+            notification = "donate";
+        } else if (arg == "--serversDying") {
+            cliMode = true;
+            notification = "serversDying";
+        } else if (arg == "--deleteSystem32") {
+            cliMode = true;
+            notification = "deleteSystem32";
+        } else if (arg == "--incomingCall") {
+            cliMode = true;
+            notification = "incomingCall";
+        } else if (arg == "--earthOnFire") {
+            cliMode = true;
+            notification = "earthOnFire";
+        } else if (arg == "--friendRequest") {
+            cliMode = true;
+            notification = "friendRequest";
+        } else if (arg == "--websiteRedesign") {
+            cliMode = true;
+            notification = "websiteRedesign";
+        } else if (arg == "--roadblocks") {
+            cliMode = true;
+            notification = "roadblocks";
+        } else if (arg == "--linkerTragedy") {
+            cliMode = true;
+            notification = "linkerTragedy";
+        } else if (arg == "--mazeGambled") {
+            cliMode = true;
+            notification = "mazeGambled";
+        } else if (arg == "--femboyLabs") {
+            cliMode = true;
+            notification = "femboyLabs";
+        } else if (arg == "--bussinIndustries") {
+            cliMode = true;
+            notification = "bussinIndustries";
+        } else if (arg == "--hTile") {
+            cliMode = true;
+            notification = "hTile";
+        } else if (arg == "--baseballEmoji") {
+            cliMode = true;
+            notification = "baseballEmoji";
+        } else if (arg == "--jonathanPork") {
+            cliMode = true;
+            notification = "jonathanPork";
+        } else if (arg == "--linkerAgain") {
+            cliMode = true;
+            notification = "linkerAgain";
+        } else if (arg == "--hGif") {
+            cliMode = true;
+            notification = "hGif";
+        } else if (arg == "--findMeOnline") {
+            cliMode = true;
+            notification = "findMeOnline";
+        } else if (arg == "--googServices") {
+            cliMode = true;
+            notification = "googServices";
+        } else if (arg == "--flash") {
+            cliMode = true;
+            notification = "flash";
+        } else if (arg == "--mcafee") {
+            cliMode = true;
+            notification = "mcafee";
+        } else if (arg == "--noskid") {
+            cliMode = true;
+            notification = "noskid";
+        }
+    }
+    
+    // CLI mode - send notification and exit without showing GUI
+    if (cliMode) {
+        QCoreApplication coreApp(argc, argv);
+        sendNotification(notification);
+        return 0;
+    }
+    
+    // GUI mode
     QApplication app(argc, argv);
 
     int fontId = QFontDatabase::addApplicationFont(":/assets/nimbusroman.otf");
