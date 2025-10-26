@@ -32,7 +32,7 @@ jobs:
             flatpak-builder \
             desktop-file-utils \
             fuse \
-            libfuse2 \
+            fuse3 \
             patchelf \
             wget
 
@@ -48,6 +48,20 @@ jobs:
 
       - name: Prepare Flatpak manifest
         run: |
+          # Create a .desktop file dynamically if it doesn't exist
+          mkdir -p src/assets
+          if [ ! -f src/assets/thenews.desktop ]; then
+            cat > src/assets/thenews.desktop <<'EOF'
+            [Desktop Entry]
+            Name=the news
+            Exec=thenews
+            Icon=thenews
+            Type=Application
+            Categories=Utility;
+            EOF
+          fi
+
+          # Create Flatpak manifest
           cat > com.weenie.thenews.yml <<'EOF'
           app-id: com.weenie.thenews
           runtime: org.freedesktop.Platform
@@ -92,7 +106,7 @@ jobs:
           # Copy icon from src/assets
           cp src/assets/thenews.png $APPDIR/usr/share/icons/hicolor/256x256/apps/thenews.png
 
-          # Create desktop entry
+          # Create .desktop file automatically
           cat > $APPDIR/usr/share/applications/thenews.desktop <<'EOF'
           [Desktop Entry]
           Name=the news
