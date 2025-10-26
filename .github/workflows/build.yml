@@ -108,7 +108,7 @@ jobs:
           flatpak build-export repo build-dir
           flatpak build-bundle repo thenews.flatpak com.weenie.thenews
 
-      - name: Build AppImage
+            - name: Build AppImage
         run: |
           APPDIR=AppDir
           mkdir -p $APPDIR/usr/bin
@@ -136,11 +136,24 @@ jobs:
           wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
           chmod +x linuxdeploy-*.AppImage
 
+          # Set Qt6 paths and environment
+          export QT_SELECT=6
           export QML_SOURCES_PATHS=src
           export DISABLE_COPYRIGHT_FILES_DEPLOYMENT=1
-          export NO_STRIP=1
-          ./linuxdeploy-x86_64.AppImage --appdir $APPDIR -e build/thenews -d $APPDIR/usr/share/applications/thenews.desktop -i $APPDIR/usr/share/icons/hicolor/256x256/apps/thenews.png --plugin qt --output appimage
-
+          export QMAKE=/usr/bin/qmake-qt6
+          
+          # Build AppImage with verbose output
+          ./linuxdeploy-x86_64.AppImage --appdir $APPDIR \
+            -e build/thenews \
+            -d $APPDIR/usr/share/applications/thenews.desktop \
+            -i $APPDIR/usr/share/icons/hicolor/256x256/apps/thenews.png \
+            --plugin qt \
+            --output appimage
+          
+          # Verify Qt plugins were bundled
+          echo "Checking bundled Qt plugins:"
+          find $APPDIR -name "*.so" | grep -i platform || echo "WARNING: No platform plugins found!"
+          
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
