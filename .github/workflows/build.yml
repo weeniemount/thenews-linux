@@ -134,7 +134,9 @@ jobs:
           chmod +x linuxdeploy-*.AppImage
 
           export QML_SOURCES_PATHS=src
-          ./linuxdeploy-x86_64.AppImage --appdir $APPDIR -e build/thenews -d $APPDIR/usr/share/applications/thenews.desktop -i $APPDIR/usr/share/icons/hicolor/256x256/apps/thenews.png --plugin qt --output appimage
+          export DISABLE_COPYRIGHT_FILES_DEPLOYMENT=1
+          # Disable stripping to avoid errors with newer binutils formats
+          ./linuxdeploy-x86_64.AppImage --appdir $APPDIR -e build/thenews -d $APPDIR/usr/share/applications/thenews.desktop -i $APPDIR/usr/share/icons/hicolor/256x256/apps/thenews.png --plugin qt --output appimage --no-strip
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
