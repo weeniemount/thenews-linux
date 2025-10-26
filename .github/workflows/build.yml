@@ -16,7 +16,7 @@ jobs:
       - name: Install build dependencies
         run: |
           dnf -y update
-          dnf -y install \
+          dnf -y install --skip-broken \
             cmake \
             make \
             gcc \
@@ -34,7 +34,11 @@ jobs:
             fuse \
             fuse3 \
             patchelf \
-            wget
+            wget \
+            libnotify-devel \
+            libnotify \
+            glib2-devel \
+            glib2
 
       - name: Checkout repository
         uses: actions/checkout@v4
