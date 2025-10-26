@@ -92,7 +92,14 @@ jobs:
 
       - name: Build Flatpak
         run: |
+          # Add flathub remote
           flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          
+          # Install runtime and SDK
+          flatpak install -y flathub org.freedesktop.Platform//24.08
+          flatpak install -y flathub org.freedesktop.Sdk//24.08
+          
+          # Build Flatpak
           flatpak-builder --force-clean build-dir com.weenie.thenews.yml
           flatpak build-export repo build-dir
           flatpak build-bundle repo thenews.flatpak com.weenie.thenews
