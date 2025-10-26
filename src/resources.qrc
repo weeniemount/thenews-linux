@@ -1,0 +1,26 @@
+<RCC>
+    <qresource prefix="/">
+        <file>assets/nimbusroman.otf</file>
+        <file>assets/johnphone.jpg</file>
+        <file>assets/linker.sh.png</file>
+        <file>assets/redesign.png</file>
+        <file>assets/roadblocks.gif</file>
+        <file>assets/roadblockman.png</file>
+        <file>assets/reporter.png</file>
+        <file>assets/thenews.png</file>
+        <file>assets/reporter2.jpg</file>
+        <file>assets/astolfo.jpg</file>
+        <file>assets/bussin_industries.png</file>
+        <file>assets/itsme...johnphone.jpg</file>
+        <file>assets/johnpork.jpg</file>
+        <file>assets/maze.png</file>
+        <file>assets/mcafee.png</file>
+        <file>assets/mcafeehero.png</file>
+        <file>assets/noskid.png</file>
+        <file>assets/whateverthisis.png</file>
+        <file>assets/h.gif</file>
+        <file>assets/snakewithhat.jpg</file>
+        <file>assets/googleplayservices.png</file>
+        <file>assets/flashplayer.png</file>
+    </qresource>
+</RCC>
