@@ -1,0 +1,119 @@
+name: build the news for linux
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  build:
+    name: Build and Package
+    runs-on: ubuntu-latest
+    container:
+      image: fedora:42
+
+    steps:
+      - name: Install build dependencies
+        run: |
+          dnf -y update
+          dnf -y install \
+            cmake \
+            make \
+            gcc \
+            gcc-c++ \
+            git \
+            qt6-qtbase-devel \
+            qt6-qttools-devel \
+            qt6-qtsvg-devel \
+            qt6-qtmultimedia-devel \
+            qt6-qtdeclarative-devel \
+            qt6-qtquickcontrols2-devel \
+            flatpak \
+            flatpak-builder \
+            desktop-file-utils \
+            fuse \
+            libfuse2 \
+            patchelf \
+            wget
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build project
+        run: |
+          mkdir -p build
+          cd build
+          cmake ../src
+          make -j$(nproc)
+
+      - name: Prepare Flatpak manifest
+        run: |
+          cat > com.weenie.thenews.yml <<'EOF'
+          app-id: com.weenie.thenews
+          runtime: org.freedesktop.Platform
+          runtime-version: '24.08'
+          sdk: org.freedesktop.Sdk
+          command: thenews
+          finish-args:
+            - --share=network
+            - --socket=x11
+            - --socket=wayland
+            - --device=dri
+            - --filesystem=home
+          modules:
+            - name: thenews
+              buildsystem: simple
+              build-commands:
+                - install -Dm755 build/thenews /app/bin/thenews
+                - install -Dm644 src/assets/thenews.png /app/share/icons/hicolor/256x256/apps/thenews.png
+                - install -Dm644 src/assets/thenews.desktop /app/share/applications/com.weenie.thenews.desktop
+              sources:
+                - type: dir
+                  path: .
+          EOF
+
+      - name: Build Flatpak
+        run: |
+          flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak-builder --force-clean build-dir com.weenie.thenews.yml
+          flatpak build-export repo build-dir
+          flatpak build-bundle repo thenews.flatpak com.weenie.thenews
+
+      - name: Build AppImage
+        run: |
+          APPDIR=AppDir
+          mkdir -p $APPDIR/usr/bin
+          mkdir -p $APPDIR/usr/share/applications
+          mkdir -p $APPDIR/usr/share/icons/hicolor/256x256/apps
+
+          # Copy binary
+          cp build/thenews $APPDIR/usr/bin/
+
+          # Copy icon from src/assets
+          cp src/assets/thenews.png $APPDIR/usr/share/icons/hicolor/256x256/apps/thenews.png
+
+          # Create desktop entry
+          cat > $APPDIR/usr/share/applications/thenews.desktop <<'EOF'
+          [Desktop Entry]
+          Name=the news
+          Exec=thenews
+          Icon=thenews
+          Type=Application
+          Categories=Utility;
+          EOF
+
+          # Download linuxdeploy + Qt plugin
+          wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+          chmod +x linuxdeploy-*.AppImage
+
+          export QML_SOURCES_PATHS=src
+          ./linuxdeploy-x86_64.AppImage --appdir $APPDIR -e build/thenews -d $APPDIR/usr/share/applications/thenews.desktop -i $APPDIR/usr/share/icons/hicolor/256x256/apps/thenews.png --plugin qt --output appimage
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: thenews-packages
+          path: |
+            *.flatpak
+            *.AppImage
