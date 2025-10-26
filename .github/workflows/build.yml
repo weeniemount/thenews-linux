@@ -40,7 +40,8 @@ jobs:
             libnotify \
             glib2-devel \
             glib2 \
-            ImageMagick
+            ImageMagick \
+            file
 
       - name: Checkout repository
         uses: actions/checkout@v4
