@@ -39,7 +39,8 @@ jobs:
             libnotify-devel \
             libnotify \
             glib2-devel \
-            glib2
+            glib2 \
+            ImageMagick
 
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -115,8 +116,8 @@ jobs:
           # Copy binary
           cp build/thenews $APPDIR/usr/bin/
 
-          # Copy icon from src/assets
-          cp src/assets/thenews.png $APPDIR/usr/share/icons/hicolor/256x256/apps/thenews.png
+          # Resize icon to 256x256 and copy it
+          convert src/assets/thenews.png -resize 256x256 $APPDIR/usr/share/icons/hicolor/256x256/apps/thenews.png
 
           # Create .desktop file automatically
           cat > $APPDIR/usr/share/applications/thenews.desktop <<'APPIMAGE_EOF'
