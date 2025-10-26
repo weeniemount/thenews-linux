@@ -52,8 +52,6 @@ jobs:
 
       - name: Prepare Flatpak manifest
         run: |
-                - name: Prepare Flatpak manifest
-        run: |
           # Create a .desktop file dynamically if it doesn't exist
           mkdir -p src/assets
           if [ ! -f src/assets/thenews.desktop ]; then
