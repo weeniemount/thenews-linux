@@ -145,5 +145,5 @@ jobs:
         with:
           name: thenews-packages
           path: |
-            *.flatpak
-            *.AppImage
+            ./*.flatpak
+            ./*.AppImage
