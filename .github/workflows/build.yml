@@ -11,6 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: fedora:42
+      options: --privileged
 
     steps:
       - name: Install build dependencies
@@ -99,8 +100,8 @@ jobs:
           flatpak install -y flathub org.freedesktop.Platform//24.08
           flatpak install -y flathub org.freedesktop.Sdk//24.08
           
-          # Build Flatpak with flags to work in containers without user namespaces
-          flatpak-builder --disable-rofiles-fuse --sandbox-flags=share-network --force-clean build-dir com.weenie.thenews.yml
+          # Build Flatpak with --disable-rofiles-fuse to work in containers
+          flatpak-builder --disable-rofiles-fuse --force-clean build-dir com.weenie.thenews.yml
           flatpak build-export repo build-dir
           flatpak build-bundle repo thenews.flatpak com.weenie.thenews
 
