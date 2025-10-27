@@ -189,5 +189,5 @@ jobs:
         with:
           name: thenews-linux
           path: |
-            ${{ github.workspace }}/t*.flatpak
-            ${{ github.workspace }}/T*.AppImage
+            ./*.flatpak
+            ./*.AppImage
