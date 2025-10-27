@@ -63,18 +63,18 @@ jobs:
           [Desktop Entry]
           Name=the news
           Exec=thenews
-          Icon=thenews
+          Icon=com.weenie.thenews
           Type=Application
           Categories=Utility;
           DESKTOP_EOF
           fi
 
-          # Create Flatpak manifest
+          # Create Flatpak manifest with Qt6 runtime
           cat > com.weenie.thenews.yml <<'FLATPAK_EOF'
           app-id: com.weenie.thenews
-          runtime: org.freedesktop.Platform
-          runtime-version: '24.08'
-          sdk: org.freedesktop.Sdk
+          runtime: org.kde.Platform
+          runtime-version: '6.8'
+          sdk: org.kde.Sdk
           command: thenews
           finish-args:
             - --share=network
@@ -87,8 +87,9 @@ jobs:
               buildsystem: simple
               build-commands:
                 - install -Dm755 build/thenews /app/bin/thenews
-                - install -Dm644 src/assets/thenews.png /app/share/icons/hicolor/256x256/apps/thenews.png
+                - install -Dm644 src/assets/thenews.png /app/share/icons/hicolor/256x256/apps/com.weenie.thenews.png
                 - install -Dm644 src/assets/thenews.desktop /app/share/applications/com.weenie.thenews.desktop
+                - desktop-file-edit --set-icon=com.weenie.thenews /app/share/applications/com.weenie.thenews.desktop
               sources:
                 - type: dir
                   path: .
@@ -99,9 +100,9 @@ jobs:
           # Add flathub remote
           flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
           
-          # Install runtime and SDK
-          flatpak install -y flathub org.freedesktop.Platform//24.08
-          flatpak install -y flathub org.freedesktop.Sdk//24.08
+          # Install KDE runtime and SDK with Qt6
+          flatpak install -y flathub org.kde.Platform//6.8
+          flatpak install -y flathub org.kde.Sdk//6.8
           
           # Build Flatpak with --disable-rofiles-fuse to work in containers
           flatpak-builder --disable-rofiles-fuse --force-clean build-dir com.weenie.thenews.yml
@@ -114,14 +115,19 @@ jobs:
           mkdir -p $APPDIR/usr/bin
           mkdir -p $APPDIR/usr/share/applications
           mkdir -p $APPDIR/usr/share/icons/hicolor/256x256/apps
+          mkdir -p $APPDIR/usr/plugins/platforms
+          mkdir -p $APPDIR/usr/plugins/platformthemes
+          mkdir -p $APPDIR/usr/plugins/xcbglintegrations
+          mkdir -p $APPDIR/usr/plugins/imageformats
+          mkdir -p $APPDIR/usr/lib/qt6/plugins
 
           # Copy binary
           cp build/thenews $APPDIR/usr/bin/
 
           # Resize icon to 256x256 and copy it
-          convert src/assets/thenews.png -resize 256x256 $APPDIR/usr/share/icons/hicolor/256x256/apps/thenews.png
+          magick src/assets/thenews.png -resize 256x256 $APPDIR/usr/share/icons/hicolor/256x256/apps/thenews.png
 
-          # Create .desktop file automatically
+          # Create .desktop file
           cat > $APPDIR/usr/share/applications/thenews.desktop <<'APPIMAGE_EOF'
           [Desktop Entry]
           Name=the news
@@ -131,58 +137,46 @@ jobs:
           Categories=Utility;
           APPIMAGE_EOF
 
-          # Download linuxdeploy + Qt plugin
-          wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-          wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
-          chmod +x linuxdeploy-*.AppImage
+          # Copy Qt6 plugins manually
+          echo "Copying Qt6 plugins..."
+          cp -r /usr/lib64/qt6/plugins/platforms $APPDIR/usr/plugins/ 2>/dev/null || true
+          cp -r /usr/lib64/qt6/plugins/platformthemes $APPDIR/usr/plugins/ 2>/dev/null || true
+          cp -r /usr/lib64/qt6/plugins/xcbglintegrations $APPDIR/usr/plugins/ 2>/dev/null || true
+          cp -r /usr/lib64/qt6/plugins/imageformats $APPDIR/usr/plugins/ 2>/dev/null || true
+          
+          # Create qt.conf to tell Qt where to find plugins
+          cat > $APPDIR/usr/bin/qt.conf <<'QTCONF_EOF'
+          [Paths]
+          Plugins = ../plugins
+          QTCONF_EOF
 
-          # Set Qt6 paths and environment
+          # Download linuxdeploy
+          wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          chmod +x linuxdeploy-x86_64.AppImage
+
+          # Extract the AppImage to avoid FUSE issues in containers
+          ./linuxdeploy-x86_64.AppImage --appimage-extract
+          
+          # Set environment variables
           export QT_SELECT=6
           export QML_SOURCES_PATHS=src
           export DISABLE_COPYRIGHT_FILES_DEPLOYMENT=1
           export NO_STRIP=1
-          export QMAKE=/usr/bin/qmake-qt6
+          export ARCH=x86_64
           
-          # Build AppImage with verbose output
-          ./linuxdeploy-x86_64.AppImage --appdir $APPDIR \
+          # Build AppImage using extracted linuxdeploy
+          ./squashfs-root/AppRun --appdir $APPDIR \
             -e build/thenews \
             -d $APPDIR/usr/share/applications/thenews.desktop \
             -i $APPDIR/usr/share/icons/hicolor/256x256/apps/thenews.png \
-            --plugin qt \
-            --output appimage || true
-          
-          # If linuxdeploy fails due to strip errors, try without Qt plugin
-          if [ ! -f *.AppImage ]; then
-            echo "Retrying without strip..."
-            rm -rf $APPDIR
-            mkdir -p $APPDIR/usr/bin
-            mkdir -p $APPDIR/usr/share/applications
-            mkdir -p $APPDIR/usr/share/icons/hicolor/256x256/apps
-            cp build/thenews $APPDIR/usr/bin/
-            convert src/assets/thenews.png -resize 256x256 $APPDIR/usr/share/icons/hicolor/256x256/apps/thenews.png
-            cat > $APPDIR/usr/share/applications/thenews.desktop <<'RETRY_EOF'
-          [Desktop Entry]
-          Name=the news
-          Exec=thenews
-          Icon=thenews
-          Type=Application
-          Categories=Utility;
-          RETRY_EOF
-            
-            # Manually copy Qt plugins since linuxdeploy-plugin-qt might fail
-            mkdir -p $APPDIR/usr/plugins/platforms
-            cp /usr/lib64/qt6/plugins/platforms/*.so $APPDIR/usr/plugins/platforms/ || true
-            
-            ./linuxdeploy-x86_64.AppImage --appdir $APPDIR \
-              -e build/thenews \
-              -d $APPDIR/usr/share/applications/thenews.desktop \
-              -i $APPDIR/usr/share/icons/hicolor/256x256/apps/thenews.png \
-              --output appimage
-          fi
+            --output appimage
           
           # Verify Qt plugins were bundled
           echo "Checking bundled Qt plugins:"
-          find $APPDIR -name "*.so" | grep -i platform || echo "WARNING: No platform plugins found!"
+          find $APPDIR -name "*.so" | grep -i platform || echo "WARNING: Platform plugins may not be found!"
+          
+          # List generated AppImage files
+          ls -lh *.AppImage || echo "No AppImage files generated"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
