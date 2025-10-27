@@ -187,7 +187,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: thenews-packages
+          name: thenews-linux
           path: |
-            ./*.flatpak
-            ./*.AppImage
+            ${{ github.workspace }}/t*.flatpak
+            ${{ github.workspace }}/T*.AppImage
