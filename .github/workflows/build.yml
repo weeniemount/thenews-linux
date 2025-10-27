@@ -31,11 +31,7 @@ jobs:
             qt6-qtdeclarative-devel \
             qt6-qtquickcontrols2-devel \
             qt6-qtwayland \
-            flatpak \
-            flatpak-builder \
             desktop-file-utils \
-            fuse \
-            fuse3 \
             patchelf \
             wget \
             libnotify-devel \
@@ -44,9 +40,7 @@ jobs:
             glib2 \
             ImageMagick \
             file \
-            rpm-build \
-            chrpath \
-            binutils
+            tar
 
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -58,109 +52,70 @@ jobs:
           cmake ../src
           make -j$(nproc)
 
-      - name: Create AppDir structure
+      - name: Create bundle structure
         run: |
-          mkdir -p AppDir/usr/bin
-          mkdir -p AppDir/usr/lib
-          mkdir -p AppDir/usr/share/applications
-          mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
+          mkdir -p bundle/usr/bin
+          mkdir -p bundle/usr/lib
           
           # Copy executable
-          cp build/thenews AppDir/usr/bin/
+          cp build/thenews bundle/usr/bin/
           
-          # Create desktop file
-          cat > AppDir/usr/share/applications/thenews.desktop << EOF
-          [Desktop Entry]
-          Type=Application
-          Name=The News
-          Exec=thenews
-          Icon=thenews
-          Categories=News;Qt;
-          Terminal=false
-          EOF
-          
-          # Create a placeholder icon if not exists
-          if [ ! -f AppDir/usr/share/icons/hicolor/256x256/apps/thenews.png ]; then
-            convert -size 256x256 xc:blue AppDir/usr/share/icons/hicolor/256x256/apps/thenews.png || true
-          fi
-
-      - name: Bundle dependencies with linuxdeploy
-        run: |
-          cd AppDir
-          
-          # Download linuxdeploy and Qt plugin
-          wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-          wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
-          chmod +x linuxdeploy-x86_64.AppImage
-          chmod +x linuxdeploy-plugin-qt-x86_64.AppImage
-          
-          # Extract AppImages (since we're in a container without FUSE)
-          ./linuxdeploy-x86_64.AppImage --appimage-extract
-          ./linuxdeploy-plugin-qt-x86_64.AppImage --appimage-extract
-          
-          # Set Qt paths
-          export QT_PLUGIN_PATH=/usr/lib64/qt6/plugins
-          export LD_LIBRARY_PATH=/usr/lib64:$LD_LIBRARY_PATH
-          
-          # Run linuxdeploy to bundle dependencies
-          ./squashfs-root/AppRun \
-            --appdir=. \
-            --executable=usr/bin/thenews \
-            --desktop-file=usr/share/applications/thenews.desktop \
-            --icon-file=usr/share/icons/hicolor/256x256/apps/thenews.png \
-            --plugin qt \
-            --output appimage || true
-          
-          cd ..
-
-      - name: Manual dependency bundling (fallback)
-        run: |
           # Copy Qt6 libraries
-          mkdir -p AppDir/usr/lib/qt6
-          
           for lib in Qt6Core Qt6Gui Qt6Widgets Qt6DBus Qt6Network Qt6Svg Qt6Multimedia Qt6Quick Qt6Qml Qt6QmlModels; do
             if [ -f /usr/lib64/lib${lib}.so.6 ]; then
-              cp -P /usr/lib64/lib${lib}.so* AppDir/usr/lib/ 2>/dev/null || true
+              cp -P /usr/lib64/lib${lib}.so* bundle/usr/lib/ 2>/dev/null || true
             fi
           done
           
           # Copy Qt plugins
-          cp -r /usr/lib64/qt6/plugins AppDir/usr/lib/qt6/ 2>/dev/null || true
+          mkdir -p bundle/usr/lib/qt6
+          cp -r /usr/lib64/qt6/plugins bundle/usr/lib/qt6/ 2>/dev/null || true
           
-          # Copy other dependencies
+          # Get all dependencies
+          echo "Collecting dependencies..."
           ldd build/thenews | grep "=> /" | awk '{print $3}' | while read lib; do
             if [ -f "$lib" ]; then
-              cp -P "$lib" AppDir/usr/lib/ 2>/dev/null || true
-              # Also copy symlinks
-              dirname=$(dirname "$lib")
-              basename=$(basename "$lib")
-              cp -P "$dirname/$basename"* AppDir/usr/lib/ 2>/dev/null || true
+              libname=$(basename "$lib")
+              # Skip system libraries that are too low-level
+              if [[ ! "$libname" =~ ^(ld-linux|libc.so|libm.so|libpthread|libdl.so|librt.so).*$ ]]; then
+                cp -L "$lib" bundle/usr/lib/ 2>/dev/null || true
+                # Also copy symlinks
+                dirname=$(dirname "$lib")
+                cp -P "$dirname/$libname"* bundle/usr/lib/ 2>/dev/null || true
+              fi
             fi
           done
           
-          # Create wrapper script
-          cat > AppDir/usr/bin/thenews-wrapper.sh << 'EOF'
+          # Create launcher script
+          cat > bundle/thenews << 'EOF'
           #!/bin/bash
-          APPDIR=$(dirname $(dirname $(readlink -f "$0")))
+          APPDIR="$(dirname "$(readlink -f "$0")")"
           export LD_LIBRARY_PATH="$APPDIR/usr/lib:$LD_LIBRARY_PATH"
           export QT_PLUGIN_PATH="$APPDIR/usr/lib/qt6/plugins"
           export QML_IMPORT_PATH="$APPDIR/usr/lib/qt6/qml"
+          export QT_QPA_PLATFORM_PLUGIN_PATH="$APPDIR/usr/lib/qt6/plugins/platforms"
           exec "$APPDIR/usr/bin/thenews" "$@"
           EOF
           
-          chmod +x AppDir/usr/bin/thenews-wrapper.sh
+          chmod +x bundle/thenews
+          chmod +x bundle/usr/bin/thenews
 
-      - name: Create standalone archive
+      - name: Create portable archive
         run: |
-          cd AppDir
-          tar czf ../thenews-linux-bundle.tar.gz *
+          cd bundle
+          tar czf ../thenews-linux-portable.tar.gz *
           cd ..
+
+      - name: Test bundle
+        run: |
+          echo "Bundle contents:"
+          ls -lh thenews-linux-portable.tar.gz
+          echo ""
+          echo "Verifying libraries are included:"
+          tar -tzf thenews-linux-portable.tar.gz | grep "\.so" | head -20
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: thenews-linux
-          path: |
-            thenews-linux-bundle.tar.gz
-            AppDir/*.AppImage
-            build/thenews
+          path: thenews-linux-portable.tar.gz
