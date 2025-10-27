@@ -1,0 +1,62 @@
+name: build the news for linux
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build and Package
+    runs-on: ubuntu-latest
+    container:
+      image: fedora:41
+      options: --privileged
+
+    steps:
+      - name: Install build dependencies
+        run: |
+          dnf -y update
+          dnf -y install --skip-broken \
+            cmake \
+            make \
+            gcc \
+            gcc-c++ \
+            git \
+            qt6-qtbase-devel \
+            qt6-qttools-devel \
+            qt6-qtsvg-devel \
+            qt6-qtmultimedia-devel \
+            qt6-qtdeclarative-devel \
+            qt6-qtquickcontrols2-devel \
+            qt6-qtwayland \
+            flatpak \
+            flatpak-builder \
+            desktop-file-utils \
+            fuse \
+            fuse3 \
+            patchelf \
+            wget \
+            libnotify-devel \
+            libnotify \
+            glib2-devel \
+            glib2 \
+            ImageMagick \
+            file
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build project
+        run: |
+          mkdir -p build
+          cd build
+          cmake ../src
+          make -j$(nproc)
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: thenews-linux
+          path: |
+            ./thenews
