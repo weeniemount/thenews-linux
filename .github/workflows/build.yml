@@ -60,3 +60,4 @@ jobs:
           name: thenews-linux
           path: |
             ./thenews
+            ./build/thenews
