@@ -11,7 +11,7 @@ jobs:
     name: Build and Package
     runs-on: ubuntu-latest
     container:
-      image: fedora:42
+      image: fedora:41
       options: --privileged
 
     steps:
@@ -105,25 +105,22 @@ jobs:
           flatpak install -y flathub org.kde.Platform//6.8
           flatpak install -y flathub org.kde.Sdk//6.8
           
-          # Build Flatpak with --disable-rofiles-fuse to work in containers
+          # Build Flatpak INSIDE the SDK to ensure Qt version compatibility
           flatpak-builder --disable-rofiles-fuse --force-clean build-dir com.weenie.thenews.yml
+          
+          # Rebuild the app inside the flatpak environment to match Qt versions
+          flatpak build build-dir bash -c "cd /run/build/thenews && rm -rf build && mkdir build && cd build && cmake ../src && make -j$(nproc) && install -Dm755 thenews /app/bin/thenews"
+          
           flatpak build-export repo build-dir
           flatpak build-bundle repo thenews.flatpak com.weenie.thenews
 
       - name: Build AppImage
         run: |
           APPDIR=AppDir
+          rm -rf $APPDIR
           mkdir -p $APPDIR/usr/bin
           mkdir -p $APPDIR/usr/share/applications
           mkdir -p $APPDIR/usr/share/icons/hicolor/256x256/apps
-          mkdir -p $APPDIR/usr/plugins/platforms
-          mkdir -p $APPDIR/usr/plugins/platformthemes
-          mkdir -p $APPDIR/usr/plugins/wayland-shell-integration
-          mkdir -p $APPDIR/usr/plugins/wayland-decoration-client
-          mkdir -p $APPDIR/usr/plugins/wayland-graphics-integration-client
-          mkdir -p $APPDIR/usr/plugins/xcbglintegrations
-          mkdir -p $APPDIR/usr/plugins/imageformats
-          mkdir -p $APPDIR/usr/plugins/iconengines
 
           # Copy binary
           cp build/thenews $APPDIR/usr/bin/
@@ -141,77 +138,89 @@ jobs:
           Categories=Utility;
           APPIMAGE_EOF
 
-          # Copy Qt6 plugins manually - including Wayland support
-          echo "Copying Qt6 plugins..."
+          # Download linuxdeploy and Qt plugin
+          wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+          chmod +x linuxdeploy-*.AppImage
+
+          # Extract to avoid FUSE issues
+          ./linuxdeploy-x86_64.AppImage --appimage-extract
+          mv squashfs-root linuxdeploy-squashfs
+          ./linuxdeploy-plugin-qt-x86_64.AppImage --appimage-extract
+          mv squashfs-root linuxdeploy-plugin-qt-squashfs
           
-          # Platform plugins (XCB and Wayland)
-          cp -r /usr/lib64/qt6/plugins/platforms $APPDIR/usr/plugins/ 2>/dev/null || true
+          # Set environment variables for Qt6
+          export QMAKE=/usr/bin/qmake-qt6
+          export QT_SELECT=6
+          export QML_SOURCES_PATHS=src
+          export DISABLE_COPYRIGHT_FILES_DEPLOYMENT=1
+          export LD_LIBRARY_PATH=/usr/lib64/qt6:$LD_LIBRARY_PATH
           
-          # Wayland plugins - CRITICAL for Wayland support
-          cp -r /usr/lib64/qt6/plugins/wayland-shell-integration $APPDIR/usr/plugins/ 2>/dev/null || true
-          cp -r /usr/lib64/qt6/plugins/wayland-decoration-client $APPDIR/usr/plugins/ 2>/dev/null || true
-          cp -r /usr/lib64/qt6/plugins/wayland-graphics-integration-client $APPDIR/usr/plugins/ 2>/dev/null || true
+          # Build AppImage
+          ./linuxdeploy-squashfs/AppRun --appdir $APPDIR \
+            -e build/thenews \
+            -d $APPDIR/usr/share/applications/thenews.desktop \
+            -i $APPDIR/usr/share/icons/hicolor/256x256/apps/thenews.png \
+            --plugin qt \
+            --output appimage
           
-          # Other plugins
-          cp -r /usr/lib64/qt6/plugins/platformthemes $APPDIR/usr/plugins/ 2>/dev/null || true
-          cp -r /usr/lib64/qt6/plugins/xcbglintegrations $APPDIR/usr/plugins/ 2>/dev/null || true
-          cp -r /usr/lib64/qt6/plugins/imageformats $APPDIR/usr/plugins/ 2>/dev/null || true
-          cp -r /usr/lib64/qt6/plugins/iconengines $APPDIR/usr/plugins/ 2>/dev/null || true
-          
-          # Also copy Wayland client library if it exists
-          cp /usr/lib64/libQt6WaylandClient.so.6* $APPDIR/usr/lib/ 2>/dev/null || true
-          cp /usr/lib64/libQt6WaylandEglClientHwIntegration.so.6* $APPDIR/usr/lib/ 2>/dev/null || true
-          
-          # Create qt.conf to tell Qt where to find plugins
-          cat > $APPDIR/usr/bin/qt.conf <<'QTCONF_EOF'
+          # If that fails, do it manually
+          if [ ! -f *.AppImage ]; then
+            echo "=== Building AppImage manually with full Qt6 support ==="
+            
+            # Deploy dependencies
+            ./linuxdeploy-squashfs/AppRun --appdir $APPDIR \
+              -e build/thenews \
+              -d $APPDIR/usr/share/applications/thenews.desktop \
+              -i $APPDIR/usr/share/icons/hicolor/256x256/apps/thenews.png
+            
+            # Manually copy Qt6 plugins
+            mkdir -p $APPDIR/usr/plugins
+            cp -r /usr/lib64/qt6/plugins/* $APPDIR/usr/plugins/ 2>/dev/null || true
+            
+            # Copy Wayland libraries
+            cp /usr/lib64/libQt6WaylandClient.so.6* $APPDIR/usr/lib/ 2>/dev/null || true
+            cp /usr/lib64/libQt6WaylandEglClientHwIntegration.so.6* $APPDIR/usr/lib/ 2>/dev/null || true
+            cp /usr/lib64/libwayland-client.so* $APPDIR/usr/lib/ 2>/dev/null || true
+            cp /usr/lib64/libwayland-cursor.so* $APPDIR/usr/lib/ 2>/dev/null || true
+            cp /usr/lib64/libwayland-egl.so* $APPDIR/usr/lib/ 2>/dev/null || true
+            
+            # Create qt.conf
+            cat > $APPDIR/usr/bin/qt.conf <<'QTCONF_EOF'
           [Paths]
           Plugins = ../plugins
           QTCONF_EOF
-
-          # Create AppRun wrapper to set environment properly
-          cat > $APPDIR/AppRun <<'APPRUN_EOF'
+            
+            # Create custom AppRun with proper environment
+            cat > $APPDIR/AppRun <<'APPRUN_EOF'
           #!/bin/bash
           APPDIR="$(dirname "$(readlink -f "$0")")"
           
-          # Set Qt plugin path
+          export LD_LIBRARY_PATH="$APPDIR/usr/lib:$LD_LIBRARY_PATH"
           export QT_PLUGIN_PATH="$APPDIR/usr/plugins"
+          export QT_QPA_PLATFORM_PLUGIN_PATH="$APPDIR/usr/plugins/platforms"
           
-          # Support both Wayland and X11, with fallback
-          export QT_QPA_PLATFORM="wayland;xcb"
+          # Try Wayland first, fallback to XCB
+          if [ -n "$WAYLAND_DISPLAY" ]; then
+            export QT_QPA_PLATFORM="wayland;xcb"
+          else
+            export QT_QPA_PLATFORM="xcb"
+          fi
           
-          # Run the application
           exec "$APPDIR/usr/bin/thenews" "$@"
           APPRUN_EOF
-          chmod +x $APPDIR/AppRun
-
-          # Download linuxdeploy
-          wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-          chmod +x linuxdeploy-x86_64.AppImage
-
-          # Extract the AppImage to avoid FUSE issues in containers
-          ./linuxdeploy-x86_64.AppImage --appimage-extract
+            chmod +x $APPDIR/AppRun
+            
+            # Build AppImage
+            ARCH=x86_64 ./linuxdeploy-squashfs/AppRun --appdir $APPDIR --output appimage
+          fi
           
-          # Set environment variables
-          export DISABLE_COPYRIGHT_FILES_DEPLOYMENT=1
-          export NO_STRIP=1
-          export ARCH=x86_64
-          
-          # Build AppImage using extracted linuxdeploy
-          ./squashfs-root/AppRun --appdir $APPDIR \
-            -d $APPDIR/usr/share/applications/thenews.desktop \
-            -i $APPDIR/usr/share/icons/hicolor/256x256/apps/thenews.png \
-            --output appimage
-          
-          # Verify Qt plugins were bundled
-          echo "=== Checking bundled Qt plugins ==="
+          # Verify
+          echo "=== Verification ==="
           echo "Platform plugins:"
-          find $APPDIR/usr/plugins/platforms -name "*.so" 2>/dev/null || echo "WARNING: No platform plugins found!"
-          echo "Wayland plugins:"
-          find $APPDIR/usr/plugins/wayland-* -name "*.so" 2>/dev/null || echo "WARNING: No Wayland plugins found!"
-          
-          # List generated AppImage files
-          echo "=== Generated AppImage files ==="
-          ls -lh *.AppImage || echo "ERROR: No AppImage files generated"
+          find $APPDIR -path "*/plugins/platforms/*.so" 2>/dev/null | head -5
+          echo "Generated AppImages:"
+          ls -lh *.AppImage 2>/dev/null || echo "ERROR: No AppImage generated"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
