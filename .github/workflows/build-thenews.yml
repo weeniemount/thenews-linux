@@ -92,10 +92,10 @@ jobs:
                   CMAKE_PREFIX_PATH: /usr
               config-opts:
                 - -DCMAKE_BUILD_TYPE=Release
-              build-commands:
+              post-install:
                 - install -Dm755 thenews /app/bin/thenews
-                - install -Dm644 ../src/assets/thenews.png /app/share/icons/hicolor/256x256/apps/com.weenie.thenews.png
-                - install -Dm644 ../src/assets/thenews.desktop /app/share/applications/com.weenie.thenews.desktop
+                - install -Dm644 assets/thenews.png /app/share/icons/hicolor/256x256/apps/com.weenie.thenews.png
+                - install -Dm644 assets/thenews.desktop /app/share/applications/com.weenie.thenews.desktop
                 - desktop-file-edit --set-icon=com.weenie.thenews /app/share/applications/com.weenie.thenews.desktop
               sources:
                 - type: dir
